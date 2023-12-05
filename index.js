@@ -117,8 +117,6 @@ app.post("/register", function (req, res) {
   });
 });
 
-
-
 app.post("/login", function (req, res) {
   const username = req.body.username;
   const password = req.body.password;
@@ -152,6 +150,49 @@ app.post("/login", function (req, res) {
     } else {
       // Användaren finns inte
       return res.json({ success: false, message: 'Användaren finns inte' });
+    }
+  });
+});
+
+app.get("/newuser", function (req, res) {
+  let sql = "SELECT * FROM newuser"; // ÄNDRA TILL NAMN PÅ ER EGEN TABELL (om den heter något annat än "users")
+  let condition = createCondition(req.query); // output t.ex. " WHERE lastname='Rosencrantz'"
+  console.log(sql + condition); // t.ex. SELECT * FROM users WHERE lastname="Rosencrantz"
+  // skicka query till databasen
+  con.query(sql + condition, function (err, result, fields) {
+    res.send(result);
+  });
+});
+
+let createCondition = function (query) {
+  // skapar ett WHERE-villkor utifrån query-parametrar
+  console.log(query);
+  let output = " WHERE ";
+  for (let key in query) {
+    if (COLUMNS.includes(key)) {
+      // om vi har ett kolumnnamn i vårt query
+      output += `${key}="${query[key]}" OR `; // t.ex. lastname="Rosencrantz"
+    }
+  }
+  if (output.length == 7) {
+    // " WHERE "
+    return ""; // om query är tomt eller inte är relevant för vår databastabell - returnera en tom sträng
+  } else {
+    return output.substring(0, output.length - 4); // ta bort sista " OR "
+  }
+};
+
+// route-parameter, dvs. filtrera efter ID i URL:en
+app.get("/newuser/:username", function (req, res) {
+  // Värdet på id ligger i req.params
+  let sql = "SELECT * FROM newuser WHERE username='" + req.params.username + "'";
+  console.log(sql);
+  // skicka query till databasen
+  con.query(sql, function (err, result, fields) {
+    if (result.length > 0) {
+      res.send(result);
+    } else {
+      res.sendStatus(404); // 404=not found
     }
   });
 });
