@@ -11,24 +11,24 @@
 
     <!-- kolla min index.js kod och se hur jag gjort med login och register och hur jag hämtar data från databasen -->
 <!-- se även hur mina löseord hashats i databasen när man registrerar sig och hur det hamnar i en json fil samtidigt -->
-
-
 <!-- DU MÅSTE FÖRST REGISTRERA EN ANVÄNDARE OCH SEN LOGGA IN -->
-        <form id="registerForm" action="/register" method="post">
-            <h2>Register</h2>
-            <label for="name">Name:</label>
-            <input type="text" id="name" name="name" required>
-            <label for="email">Email:</label>
-            <input type="email" id="email" name="email" required>
-            <label for="username">Username:</label>
-            <input type="text" id="username" name="username" required>
-            <label for="password">Password:</label>
-            <input type="password" id="password" name="password" required>
-            <input type="submit" value="Register" href="index.html">
-            
-        </form>
 
-        <p>Already have an account? <a href="index.html">Log in</a></p> 
+        <h1>Register</h1>
+        <ul>
+  
+            <li><em>GET/newuser</em> - returnerar alla befintliga användare.</li> <br>
+    
+            <li><em>GET /newuser/:id </em> - returnerar en user med angivet id eller status 404 om användaren saknas.</li> <br>
+
+            <li><em>POST /register </em> - registrerar en ny användare med hashat lösenord med accepterar JSON objekt på formatet {"name": "", "email": "", "username": "password": ""}</li><br>
+
+            <li><em>POST /login </em> - loggar in en användare som registrerats.</li><br>
+
+            <li><em>PUT /users/:id</em> - uppdaterar användaren med angivet id, accepterar JSON-objekt på formatet {"name": "", "password": "", "email": ""}.</li>
+    
+    
+          </p>
+
 
         <!-- mitt id på mina users är användarnamnet som är unikt -->
     

@@ -19,31 +19,48 @@ app.listen(port, () => {
 // hämtar in index.html, register.html och homepage.html så jag kan använda dem i mina routes
 app.get("/", function (req, res) {
   res.sendFile(__dirname + "/register.html");
+  
 });
 
-app.get("/index.html", function (req, res) {
-  res.sendFile(__dirname + "/index.html");
-});
+let authenticateToken = function(req, res) {
+  let token = req.header('Authorization').slice(7);
+  console.log(token);
 
-app.get("/register.html", function (req, res) {
-  res.sendFile(__dirname + "/register.html");
-}); 
+  if (!token) {
+    return { success: false, message: 'Åtkomst nekad. Token saknas.' };
+  }
+  let decoded;
+try {
+  decoded = jwt.verify(token, 'dinHemligaNyckel');
+  
+} catch (error) {
+  console.error(error);
+  return { success: false, message: 'Åtkomst nekad. Ogiltigt token.' };
+}
+return {success: true, message: 'Token verifierad.', user: decoded};
+}
 
+// Protected route using the authenticateToken middleware
 app.get("/newuser", function (req, res) {
-  let sql = "SELECT * FROM newuser"; // ÄNDRA TILL NAMN PÅ ER EGEN TABELL (om den heter något annat än "users")
-  let condition = createCondition(req.query); // output t.ex. " WHERE lastname='Rosencrantz'"
-  console.log(sql + condition); // t.ex. SELECT * FROM users WHERE lastname="Rosencrantz"
-  // skicka query till databasen
+let auth = authenticateToken(req, res);
+console.log(auth);
+if (!auth.success) {
+  return res.status(401).json(auth);
+  }
+
+
+  let sql = "SELECT * FROM newuser";
+  let condition = createCondition(req.query);
+
   con.query(sql + condition, function (err, result, fields) {
     res.send(result);
   });
 });
 
-app.get("/newuser/:username", function (req, res) {
-  // Värdet på id ligger i req.params
-  let sql = "SELECT * FROM newuser WHERE username='" + req.params.username + "'";
-  console.log(sql);
-  // skicka query till databasen
+// Protected route using the authenticateToken middleware
+app.get("/newuser/:id", function (req, res) {
+  let sql = "SELECT * FROM newuser WHERE id=" + req.params.id;
+
   con.query(sql, function (err, result, fields) {
     if (result.length > 0) {
       res.send(result);
@@ -53,26 +70,20 @@ app.get("/newuser/:username", function (req, res) {
   });
 });
 
-
 let createCondition = function (query) {
-  // skapar ett WHERE-villkor utifrån query-parametrar
   console.log(query);
   let output = " WHERE ";
   for (let key in query) {
     if (COLUMNS.includes(key)) {
-      // om vi har ett kolumnnamn i vårt query
-      output += `${key}="${query[key]}" OR `; // t.ex. lastname="Rosencrantz"
+      output += `${key}="${query[key]}" OR `; 
     }
   }
   if (output.length == 7) {
-    // " WHERE "
     return ""; // om query är tomt eller inte är relevant för vår databastabell - returnera en tom sträng
   } else {
     return output.substring(0, output.length - 4); // ta bort sista " OR "
   }
 };
-
-
 
 // skapar en connection till min databas med rätt uppgifter
 con = mysql.createConnection({
@@ -91,33 +102,52 @@ app.use(express.static('public'));
 app.use(bodyParser.urlencoded({ extended: true }));
 
 
-
-// skapar en post route för att kunna registrera en ny användare och lägga till den i databasen
 app.post("/register", function (req, res) {
-  const name = req.body.name;
-  const email = req.body.email;
-  const username = req.body.username;
-  const password = req.body.password;
+  if (!req.body.username) {
+    res.status(400).send("Username required!");
+    return;
+  }
 
-  // Hasha lösenordet med bcrypt och kontrollera efteråt om det gick bra
-  bcrypt.hash(password, 10, function (err, hashedPassword) {
-    if (err) {
-      console.error("Hashing Error:", err);
-      return res.status(500).json({ success: false, message: 'Fel vid hashning av lösenord' });
+  let fields = ["username", "password", "name", "email"];
+  for (let key in req.body) {
+    if (!fields.includes(key)) {
+      res.status(400).send("Unknown field: " + key);
+      return;
+    }
+  }
+  // Hasha lösenordet med bcrypt
+  bcrypt.hash(req.body.password, 10, function (hashErr, hashedPassword) {
+    if (hashErr) {
+      console.error("Hashing Error:", hashErr);
+      return res.status(500).json({ success: false, message: 'Error hashing the password' });
     }
 
-    // Utför INSERT-frågan för att lägga till den nya användaren i databasen
-    const sql = "INSERT INTO newuser (name, email, username, password) VALUES (?, ?, ?, ?)";
-    con.query(sql, [name, email, username, hashedPassword], function (err, result) {
+    let sql = `INSERT INTO newuser (username, password, name, email)
+      VALUES ('${req.body.username}', 
+      '${hashedPassword}',
+      '${req.body.name}',
+      '${req.body.email}');
+      SELECT LAST_INSERT_ID();`;
+
+    con.query(sql, function (err, result, fields) {
       if (err) {
         console.error("MySQL Query Error:", err);
-        return res.status(500).json({ success: false, message: 'Fel vid registrering av ny användare' });
+        return res.status(500).json({ success: false, message: 'Error inserting new user' });
       }
-      
-         res.send(req.body);  // Endast skicka respons här
-        });
-      });
+
+      console.log(result);
+      let output = {
+        id: result[0].insertId,
+        username: req.body.username,
+        password: hashedPassword,  // Skicka det hashade lösenordet tillbaka
+        name: req.body.name,
+        email: req.body.email,
+      };
+      res.send(output);
     });
+  });
+});
+
 
 app.post("/login", function (req, res) {
   const username = req.body.username;
@@ -143,8 +173,10 @@ app.post("/login", function (req, res) {
 
         if (passwordMatch) {
           // Inloggningen lyckades
+
           // Skapa en JWT-token
-          const token = jwt.sign({ username: username }, 'dinHemligaNyckel', { expiresIn: '1h' });
+          const token = jwt.sign({ sub: username, username: username }, 'dinHemligaNyckel');
+
           // Skicka token som svar
           res.json({ success: true, message: 'Inloggning lyckades', token: token });
         } else {
@@ -155,6 +187,30 @@ app.post("/login", function (req, res) {
     } else {
       // Användaren finns inte
       return res.json({ success: false, message: 'Användaren finns inte' });
+    }
+  });
+});
+
+app.put("/newuser/:id", function (req, res) {
+
+  //kod här för att hantera anrop…
+  // kolla först att all data som ska finnas finns i request-body
+  if (!(req.body && req.body.name && req.body.email && req.body.password && req.body.username)) {
+    // om data saknas i body
+    res.sendStatus(400);
+    return;
+  }
+  let sql = `UPDATE newuser 
+        SET name = '${req.body.name}', email = '${req.body.email}', password = '${req.body.password}', username = '${req.body.username}'
+        WHERE id = ${req.params.id}`;
+
+  con.query(sql, function (err, result, fields) {
+    if (err) {
+      throw err;
+      //kod här för felhantering, skicka felmeddelande osv.
+    } else {
+      // meddela klienten att request har processats OK
+      res.sendStatus(200);
     }
   });
 });
