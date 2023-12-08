@@ -15,13 +15,14 @@ app.listen(port, () => {
   console.log(`Server is running on http://localhost:${port}`);
 });
 
-//ALLA APP GETTAR SOM HÄMTAR IN HTML SIDORNA
-// hämtar in index.html, register.html och homepage.html så jag kan använda dem i mina routes
+
+//hämtar min register.html fil
 app.get("/", function (req, res) {
   res.sendFile(__dirname + "/register.html");
   
 });
 
+// gör en funktion som kollar om användaren är authoriserad eller inte med en token
 let authenticateToken = function(req, res) {
   let token = req.header('Authorization').slice(7);
   console.log(token);
@@ -48,7 +49,6 @@ if (!auth.success) {
   return res.status(401).json(auth);
   }
 
-
   let sql = "SELECT * FROM newuser";
   let condition = createCondition(req.query);
 
@@ -70,6 +70,7 @@ app.get("/newuser/:id", function (req, res) {
   });
 });
 
+// använder en where sats för att kunna söka på användare i databasen
 let createCondition = function (query) {
   console.log(query);
   let output = " WHERE ";
@@ -102,12 +103,12 @@ app.use(express.static('public'));
 app.use(bodyParser.urlencoded({ extended: true }));
 
 
+// skapar en connection till min databas med rätt uppgifter
 app.post("/register", function (req, res) {
   if (!req.body.username) {
     res.status(400).send("Username required!");
     return;
   }
-
   let fields = ["username", "password", "name", "email"];
   for (let key in req.body) {
     if (!fields.includes(key)) {
@@ -121,7 +122,7 @@ app.post("/register", function (req, res) {
       console.error("Hashing Error:", hashErr);
       return res.status(500).json({ success: false, message: 'Error hashing the password' });
     }
-
+// skapar en connection till min databas med rätt uppgifter
     let sql = `INSERT INTO newuser (username, password, name, email)
       VALUES ('${req.body.username}', 
       '${hashedPassword}',
@@ -129,6 +130,7 @@ app.post("/register", function (req, res) {
       '${req.body.email}');
       SELECT LAST_INSERT_ID();`;
 
+  
     con.query(sql, function (err, result, fields) {
       if (err) {
         console.error("MySQL Query Error:", err);
@@ -148,7 +150,7 @@ app.post("/register", function (req, res) {
   });
 });
 
-
+// skapar en connection till min databas med rätt uppgifter
 app.post("/login", function (req, res) {
   const username = req.body.username;
   const password = req.body.password;
@@ -160,7 +162,7 @@ app.post("/login", function (req, res) {
       console.error("MySQL Query Error:", err);
       return res.status(500).json({ success: false, message: 'Fel server error' });
     }
-
+// kollar om användaren finns i databasen
     if (result.length > 0) {
       const storedHashedPassword = result[0].password;
 
@@ -190,20 +192,21 @@ app.post("/login", function (req, res) {
     }
   });
 });
-
+// skapar en connection till min databas med rätt uppgifter
 app.put("/newuser/:id", function (req, res) {
 
-  //kod här för att hantera anrop…
   // kolla först att all data som ska finnas finns i request-body
   if (!(req.body && req.body.name && req.body.email && req.body.password && req.body.username)) {
     // om data saknas i body
     res.sendStatus(400);
     return;
   }
+  // skapa SQL-satsen
   let sql = `UPDATE newuser 
         SET name = '${req.body.name}', email = '${req.body.email}', password = '${req.body.password}', username = '${req.body.username}'
         WHERE id = ${req.params.id}`;
 
+  // skicka SQL-satsen till databasen
   con.query(sql, function (err, result, fields) {
     if (err) {
       throw err;
